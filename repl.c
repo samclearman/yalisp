@@ -162,13 +162,10 @@ Cell *apply_function(Cell *fn, Cell *args, Scope *scope) {
  */
 
 Cell *eval(Cell *c, Scope *scope) {
-  printf("evaluating...\n");
     
   if (c->type == TUPLE) {
-    printf("tuple...\n");
     Cell *left = eval(c->left,scope);
     if (is_function(left)) {
-      print_cell(c); printf(" is a function.\n");
       return apply_function(left, eval(c->right, scope), scope);
     }
     
@@ -180,10 +177,8 @@ Cell *eval(Cell *c, Scope *scope) {
   }
   
   if (c->type == SYMBOL) {
-    printf("symbol...\n");
     
     if (lookup(scope, c->sym) != NULL) {
-      printf("found!\n");
       return lookup(scope, c->sym);
     }
     return copy_cell(c);
