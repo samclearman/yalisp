@@ -19,7 +19,7 @@ typedef struct Cell {
   struct Cell *right;
 } Cell;
 
-enum { SYMBOL, TUPLE, X };
+enum { SYMBOL, TUPLE, NIL };
 
 void print_cell(Cell *c) {
   switch (c->type) {
@@ -120,7 +120,7 @@ bool is_function(Cell *c) {
 }
 
 bool is_null(Cell *c) {
-  if (c->type == X) {
+  if (c->type == NIL) {
     return true;
   }
   return false;
@@ -149,8 +149,8 @@ Cell *apply_function(Cell *fn, Cell *args, Scope *scope) {
   if (fn->right->type != TUPLE) {
     /* return error */
   }
-  Cell *body = fn->right->left;
-  Cell *param_names = fn->right->right;
+  Cell *body = fn->right->right;
+  Cell *param_names = fn->right->left;
   scope = add_to_scope(scope, param_names, args);
   Cell *result = eval(body, scope);
   return result;
@@ -201,6 +201,11 @@ Cell *read(mpc_ast_t* t) {
     strcpy(x->sym, t->contents);
     return x;
   }
+  
+  if (strstr(t->tag, "nil")) {
+    x->type = NIL;
+    return x;
+  }
 
   x->type = TUPLE;
   x->left = read(t->children[1]);
@@ -216,7 +221,8 @@ Cell *read(mpc_ast_t* t) {
 int main(int argc, char** argv) {
   
   /* Initialize */
-  
+
+  mpc_parser_t *Nil      = mpc_new("nil");
   mpc_parser_t *Symbol   = mpc_new("symbol");
   mpc_parser_t *Tuple    = mpc_new("tuple");
   mpc_parser_t *Expr     = mpc_new("expr");
@@ -225,12 +231,13 @@ int main(int argc, char** argv) {
 
   mpca_lang(MPCA_LANG_DEFAULT,
     "  \
+      nil       : '$' ; \
       symbol    : /[#a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ; \
       tuple     : '(' <expr> <expr> ')' ; \
-      expr      : <tuple> | <symbol> ; \
+      expr      : <tuple> | <symbol> | <nil> ; \
       yalisp    : /^/ <expr> /$/ ; \
     ",
-    Symbol, Tuple, Expr, Yalisp);
+    Nil, Symbol, Tuple, Expr, Yalisp);
 
 
   /* Start the REPL */
@@ -261,6 +268,6 @@ int main(int argc, char** argv) {
     free(input);
   }
 
-  mpc_cleanup(4, Symbol, Tuple, Expr, Yalisp);
+  mpc_cleanup(5, Nil, Symbol, Tuple, Expr, Yalisp);
   return 0;
 }
