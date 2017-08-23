@@ -21,6 +21,8 @@ typedef struct Cell {
 
 enum { SYMBOL, TUPLE, NIL };
 
+struct Cell NIL_CELL = {.type = NIL};
+
 void print_cell(Cell *c) {
   switch (c->type) {
   case SYMBOL:
@@ -81,11 +83,19 @@ typedef struct Scope {
   
 } Scope;
 
+Scope *new_scope() {
+  Scope *s = malloc(sizeof(Scope));
+  s->name = malloc(sizeof(char) * 2);
+  strcpy(s->name, "$");
+  s->value = &NIL_CELL;
+  s->parent = NULL;
+  return s;
+}
+
 Cell *lookup(Scope *scope, char *name) {
-  
   if (scope == NULL) {
     return NULL;
-  }
+ } 
 
   if (strcmp(scope->name, name) == 0) {
     return copy_cell(scope->value);
@@ -98,8 +108,8 @@ Scope *add(Scope *scope, symbol name, Cell *value) {
 
   Scope *s = malloc(sizeof(Scope));
   
-  s->name = malloc(sizeof(char*) * (strlen(name) + 1));
-  strcpy(name, s->name);
+  s->name = malloc(sizeof(char) * (strlen(name) + 1));
+  strcpy(s->name, name);
   s->value = value;
   s->parent = scope;
 
@@ -110,11 +120,21 @@ Scope *add(Scope *scope, symbol name, Cell *value) {
  * functions!
  */
 
+const int NUM_BUILTINS = 5;
+const char* BUILTINS[NUM_BUILTINS] = {"atom", "eq", "first", "rest", "pair"};
+
 bool is_function(Cell *c) {
   if (c->type == TUPLE &&
       c->left->type == SYMBOL &&
       strcmp(c->left->sym, "#") == 0) {
     return true;
+  }
+  if (c->type == SYMBOL) {
+    for (int i = 0; i < NUM_BUILTINS; i++) {
+      if (strcmp(c->sym, BUILTINS[i]) == 0) {
+	return true;
+      }
+    }
   }
   return false;
 }
@@ -251,10 +271,10 @@ int main(int argc, char** argv) {
     mpc_result_t r;
 
     if (mpc_parse("<stdin>", input, Yalisp, &r)) {
-      
+      Scope *scope = new_scope();
       mpc_ast_t *t = r.output;
       Cell *c = read(t->children[1]);
-      Cell *result = eval(c, NULL);
+      Cell *result = eval(c, scope);
       printf("input: "); println_cell(c);
       printf("result: "); println_cell(result);
       free_cell(c);
