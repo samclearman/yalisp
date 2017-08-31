@@ -182,8 +182,8 @@ Scope *add(Scope *scope, symbol name, Cell *value) {
  * functions!
  */
 
-const int NUM_BUILTINS = 5;
-const char* BUILTINS[NUM_BUILTINS] = {"atom", "eq", "first", "rest", "pair"};
+const int NUM_BUILTINS = 6;
+const char* BUILTINS[NUM_BUILTINS] = {"atom", "eq", "first", "rest", "if", "pair"};
 
 Cell *atom(Cell *c) {
   if (c->type == SYMBOL) {
@@ -210,17 +210,31 @@ Cell *eq(Cell *c) {
   return NULL;
 }
 
-Cell *left(Cell *x) {
+Cell *first(Cell *x) {
+  if (x->type == TUPLE) {
+    return x->left;
+  }
+  return NULL;
+}
+
+Cell *rest(Cell *x) {
   if (x->type == TUPLE) {
     return x->right;
   }
   return NULL;
 }
 
-Cell *right(Cell *x) {
-  if (x->type == TUPLE) {
-    return x->left;
+Cell *ifthenelse(Cell *x) {
+  if (x->type == TUPLE &&
+      x->left &&
+      x->left->type == SYMBOL) {
+    if (strcmp(x->left->sym, "true") == 0) {
+      return(x->right->left);
+    } else if (strcmp(x->left->sym, "false") == 0) {
+      return(x->right->right);
+    }
   }
+  printf("condition isn't a boolean\n");
   return NULL;
 }
 
@@ -256,6 +270,14 @@ bool is_function(Cell *c) {
 Cell *builtin_for(Cell *c) {
   if (strcmp(c->sym, "atom") == 0) {
     return new_native_fn((long) &atom);
+  } else if (strcmp(c->sym, "eq") == 0) {
+    return new_native_fn((long) &eq);
+  } else if (strcmp(c->sym, "first") == 0) {
+    return new_native_fn((long) &first);
+  } else if (strcmp(c->sym, "rest") == 0) {
+    return new_native_fn((long) &rest);
+  } else if (strcmp(c->sym, "if") == 0) {
+    return new_native_fn((long) &ifthenelse);
   }
   /* Error */
   printf("failed to get builtin for: "); println_cell(c);
