@@ -12,14 +12,22 @@
 
 typedef char *symbol;
 
+typedef struct NativeValue {
+  int native_type;
+  long long_val;
+} NativeValue;
+
+enum { LONG, FUNCTION };
+
 typedef struct Cell {
   int type;
   symbol sym;
   struct Cell *left;
   struct Cell *right;
+  NativeValue *val;
 } Cell;
 
-enum { SYMBOL, TUPLE, NIL };
+enum { SYMBOL, TUPLE, NIL, NATIVE};
 
 struct Cell NIL_CELL = {.type = NIL};
 
@@ -35,7 +43,13 @@ void print_cell(Cell *c) {
     print_cell(c->right);
     printf(")");
     break;
-  }
+  case NIL:
+    printf("$");
+    break;
+  case NATIVE:
+    printf("<native code at %p>", (void *) c->val->long_val);
+    break;
+  } 
 }
 
 void println_cell(Cell* c) {
@@ -54,6 +68,54 @@ void free_cell(Cell *c) {
     break;
   }
   free(c);
+}
+
+Cell *new(int type, symbol sym, Cell *left, Cell *right, NativeValue *val) {
+  Cell *c = malloc(sizeof(Cell));
+  c->type = type;
+  switch (type) {
+  case SYMBOL:
+    if (!sym) {
+      printf("error creating sym\n");
+      return NULL; /* error */
+    }
+    c->sym = malloc(strlen(sym) + 1);
+    strcpy(c->sym, sym);
+    return c;
+  case TUPLE:
+    if (!left || !right) {
+      printf("error creating tuple\n");
+      return NULL; /* error */
+    }
+    c->left = left;
+    c->right = right;
+    return c;
+  case NATIVE:
+    if (!val) {
+      printf("error creating native val");
+      return NULL;
+    }
+    c->val = val;
+    return c;
+  default:
+    printf("error creating cell: unknown type\n");
+    return NULL; /* error */
+  }
+}
+
+Cell *new_symbol(symbol sym) {
+  return new(SYMBOL, sym, NULL, NULL, NULL);
+}
+
+Cell *new_tuple(Cell *left, Cell *right) {
+  return new(TUPLE, NULL, left, right, NULL);
+}
+
+Cell *new_native_fn(long x) {
+  NativeValue *v = malloc(sizeof(NativeValue));
+  v->native_type = FUNCTION;
+  v->long_val = x;
+  return new(NATIVE, NULL, NULL, NULL, v);
 }
 
 Cell *copy_cell(Cell *c) {
@@ -123,12 +185,50 @@ Scope *add(Scope *scope, symbol name, Cell *value) {
 const int NUM_BUILTINS = 5;
 const char* BUILTINS[NUM_BUILTINS] = {"atom", "eq", "first", "rest", "pair"};
 
-bool is_function(Cell *c) {
-  if (c->type == TUPLE &&
-      c->left->type == SYMBOL &&
-      strcmp(c->left->sym, "#") == 0) {
-    return true;
+Cell *atom(Cell *c) {
+  if (c->type == SYMBOL) {
+    return new_symbol("True");
   }
+  return new_symbol("False");
+}
+
+Cell *eq(Cell *c) {
+  if (c->type != TUPLE) {
+    /* error */
+    return NULL;
+  }
+  Cell *x = c->left;
+  Cell *y = c->right;
+  if (x->type == SYMBOL &&
+      y->type == SYMBOL) {
+    if(strcmp(x->sym, y->sym) == 0) {
+      return new_symbol("true");
+    } else {
+      return new_symbol("false");
+    }
+  }
+  return NULL;
+}
+
+Cell *left(Cell *x) {
+  if (x->type == TUPLE) {
+    return x->right;
+  }
+  return NULL;
+}
+
+Cell *right(Cell *x) {
+  if (x->type == TUPLE) {
+    return x->left;
+  }
+  return NULL;
+}
+
+Cell *pair(Cell *left, Cell *right) {
+  return new_tuple(left, right);
+}
+
+bool is_builtin_name(Cell *c) {
   if (c->type == SYMBOL) {
     for (int i = 0; i < NUM_BUILTINS; i++) {
       if (strcmp(c->sym, BUILTINS[i]) == 0) {
@@ -139,6 +239,29 @@ bool is_function(Cell *c) {
   return false;
 }
 
+bool is_function(Cell *c) {
+  // if (is_builtin_name(c)) return true;
+  if (c->type == NATIVE &&
+      c->val->native_type == FUNCTION) {
+    return true;
+  }
+  if (c->type == TUPLE &&
+      c->left->type == SYMBOL &&
+      strcmp(c->left->sym, "#") == 0) {
+    return true;
+  }
+  return false;
+}
+
+Cell *builtin_for(Cell *c) {
+  if (strcmp(c->sym, "atom") == 0) {
+    return new_native_fn((long) &atom);
+  }
+  /* Error */
+  printf("failed to get builtin for: "); println_cell(c);
+  return NULL;
+}
+      
 bool is_null(Cell *c) {
   if (c->type == NIL) {
     return true;
@@ -166,13 +289,21 @@ Scope *add_to_scope(Scope *scope, Cell *param_names, Cell *args) {
 
 Cell *eval(Cell *c, Scope *scope);
 Cell *apply_function(Cell *fn, Cell *args, Scope *scope) {
-  if (fn->right->type != TUPLE) {
-    /* return error */
+  printf("applying "); println_cell(fn);
+  if (fn->type == NATIVE &&
+      fn->val->native_type == FUNCTION) {
+    Cell *((*f)(Cell *)) = (Cell *((*)(Cell *)))fn->val->long_val;
+    return (*f)(args);
+  } 
+  if (!fn->right || fn->right->type != TUPLE) {
+    printf("failed to apply function "); println_cell(fn);
+    return NULL;
   }
   Cell *body = fn->right->right;
   Cell *param_names = fn->right->left;
   scope = add_to_scope(scope, param_names, args);
   Cell *result = eval(body, scope);
+  printf("result: ");println_cell(result);
   return result;
 }
 
@@ -182,22 +313,29 @@ Cell *apply_function(Cell *fn, Cell *args, Scope *scope) {
  */
 
 Cell *eval(Cell *c, Scope *scope) {
+  printf("evaluating: ");println_cell(c);
+  if (is_builtin_name(c)) {
+    printf("builtin\n");
+    return builtin_for(c);
+  }	  
     
   if (c->type == TUPLE) {
     Cell *left = eval(c->left,scope);
+    printf("left: ");println_cell(left);
     if (is_function(left)) {
       return apply_function(left, eval(c->right, scope), scope);
+      
     }
     
     Cell *r = malloc(sizeof(Cell));
     r->type = TUPLE;
     r->left = left;
     r->right = eval(c->right, scope);
+    printf("result: ");println_cell(r);
     return r;
   }
   
   if (c->type == SYMBOL) {
-    
     if (lookup(scope, c->sym) != NULL) {
       return lookup(scope, c->sym);
     }
@@ -275,6 +413,10 @@ int main(int argc, char** argv) {
       mpc_ast_t *t = r.output;
       Cell *c = read(t->children[1]);
       Cell *result = eval(c, scope);
+      if(!c || !result) {
+	printf("error\n");
+	continue;
+      }
       printf("input: "); println_cell(c);
       printf("result: "); println_cell(result);
       free_cell(c);
