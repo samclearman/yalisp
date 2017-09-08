@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include <editline/readline.h>
-#include "mpc.h"
 
 
 /*
@@ -439,30 +438,6 @@ Cell *parse_atom(char **input_ptr) {
   free(name);
   return c;
 }
-  
-
-Cell *read(mpc_ast_t* t) {
-
-  Cell *x = malloc(sizeof(Cell));
-  
-  if (strstr(t->tag, "symbol")) {
-    x->type = SYMBOL;
-    x->sym = malloc(strlen(t->contents) + 1);
-    strcpy(x->sym, t->contents);
-    return x;
-  }
-  
-  if (strstr(t->tag, "nil")) {
-    x->type = NIL;
-    return x;
-  }
-
-  x->type = TUPLE;
-  x->left = read(t->children[1]);
-  x->right = read(t->children[2]);
-  return x;
-
-}
 
 /*
  * run
@@ -470,26 +445,6 @@ Cell *read(mpc_ast_t* t) {
 
 int main(int argc, char** argv) {
   
-  /* Initialize */
-
-  mpc_parser_t *Nil      = mpc_new("nil");
-  mpc_parser_t *Symbol   = mpc_new("symbol");
-  mpc_parser_t *Tuple    = mpc_new("tuple");
-  mpc_parser_t *Expr     = mpc_new("expr");
-  mpc_parser_t *Yalisp   = mpc_new("yalisp");
-
-
-  mpca_lang(MPCA_LANG_DEFAULT,
-    "  \
-      nil       : '$' ; \
-      symbol    : /[#a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ; \
-      tuple     : '(' <expr> <expr> ')' ; \
-      expr      : <tuple> | <symbol> | <nil> ; \
-      yalisp    : /^/ <expr> /$/ ; \
-    ",
-    Nil, Symbol, Tuple, Expr, Yalisp);
-
-
   /* Start the REPL */
   
   puts("yalisp 0.001");
