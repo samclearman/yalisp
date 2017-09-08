@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include <editline/readline.h>
 #include "mpc.h"
@@ -97,10 +98,16 @@ Cell *new(int type, symbol sym, Cell *left, Cell *right, NativeValue *val) {
     }
     c->val = val;
     return c;
+  case NIL:
+    return c;
   default:
     printf("error creating cell: unknown type\n");
     return NULL; /* error */
   }
+}
+
+Cell *new_nil() {
+  return new(NIL, NULL, NULL, NULL, NULL);
 }
 
 Cell *new_symbol(symbol sym) {
@@ -370,6 +377,69 @@ Cell *eval(Cell *c, Scope *scope) {
 /*
  * ast creation
  */
+Cell *parse_expr(char **input_ptr);
+Cell *parse_tuple(char **input_ptr);
+Cell *parse_atom(char **input_ptr);
+Cell *parse(char *input) {
+  return parse_expr(&input);
+}
+
+Cell *parse_expr(char **input_ptr) {
+  for(; **input_ptr == ' '; (*input_ptr)++);
+  if (**input_ptr == '\0') {
+    printf("end of string?\n");
+    return NULL;
+  }
+  if (**input_ptr == '(') {
+    return parse_tuple(input_ptr);
+  }
+  return parse_atom(input_ptr);
+}
+
+Cell *parse_tuple(char **input_ptr) {
+  if (**input_ptr != '(') {
+    printf("tuples must being with (\n");
+    return NULL;
+  } else {
+    (*input_ptr)++;
+  }
+  Cell *left = parse_expr(input_ptr);
+  if (!left) { return NULL; }
+  Cell *right = parse_expr(input_ptr);
+  if (!right) {return NULL; }
+  for(; **input_ptr == ' '; (*input_ptr)++);
+  if (**input_ptr != ')') {
+    printf("unmatched '('\n");
+    return NULL;
+  } else {
+    (*input_ptr)++;
+  }
+  return new_tuple(left, right);
+}
+
+Cell *parse_atom(char **input_ptr) {
+  int i;
+  for(i = 0;
+      ('a' <= (*input_ptr)[i] && (*input_ptr)[i] <= 'z') ||
+	(*input_ptr)[i] == '#' ||
+	(*input_ptr)[i] == '$';
+      i++);
+  if (i == 0) {
+    printf("unexpected %c", (*input_ptr)[i]);
+    return NULL;
+  }
+  char *name = strndup(*input_ptr, i);
+  *input_ptr += i;
+  Cell *c;
+  if (strcmp(name, "$") == 0) {
+    c = new_nil();
+  } else {
+    c = new_symbol(name);
+  }
+  free(name);
+  return c;
+}
+  
 
 Cell *read(mpc_ast_t* t) {
 
@@ -428,12 +498,10 @@ int main(int argc, char** argv) {
     char *input = readline("yalisp> ");
     add_history(input);
 
-    mpc_result_t r;
+    Cell *c = parse(input);
 
-    if (mpc_parse("<stdin>", input, Yalisp, &r)) {
+    if (c) {
       Scope *scope = new_scope();
-      mpc_ast_t *t = r.output;
-      Cell *c = read(t->children[1]);
       Cell *result = eval(c, scope);
       if(!c || !result) {
 	printf("error\n");
@@ -443,15 +511,12 @@ int main(int argc, char** argv) {
       printf("result: "); println_cell(result);
       free_cell(c);
       free_cell(result);
-      mpc_ast_delete(r.output);
     } else {
-      mpc_err_print(r.error);
-      mpc_err_delete(r.error);
+      printf("parse error\n");
     }
 
     free(input);
   }
-
-  mpc_cleanup(5, Nil, Symbol, Tuple, Expr, Yalisp);
+  
   return 0;
 }
