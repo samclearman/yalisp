@@ -21,9 +21,12 @@ enum { LONG, FUNCTION };
 
 typedef struct Cell {
   int type;
+  // Symbol
   symbol sym;
-  struct Cell *left;
-  struct Cell *right;
+  // Tuple
+  int len;
+  struct Cell **children;
+  // Value
   NativeValue *val;
 } Cell;
 
@@ -38,9 +41,11 @@ void print_cell(Cell *c) {
     break;
   case TUPLE:
     printf("(");
-    print_cell(c->left);
-    printf(" ");
-    print_cell(c->right);
+    print_cell(c->children[0]);
+    for (int i = 1; i < c->len; i++) {
+      printf(" ");
+      print_cell(c->children[i]);
+    }
     printf(")");
     break;
   case NIL:
@@ -63,14 +68,15 @@ void free_cell(Cell *c) {
     free(c->sym);
     break;
   case TUPLE:
-    free_cell(c->left);
-    free_cell(c->right);
+    for (int i = 0; i < c->len; i++) {
+      free_cell(c->children[i]);
+    }
     break;
   }
   free(c);
 }
 
-Cell *new(int type, symbol sym, Cell *left, Cell *right, NativeValue *val) {
+Cell *new(int type, symbol sym, int len, Cell **children, NativeValue *val) {
   Cell *c = malloc(sizeof(Cell));
   c->type = type;
   switch (type) {
@@ -83,12 +89,13 @@ Cell *new(int type, symbol sym, Cell *left, Cell *right, NativeValue *val) {
     strcpy(c->sym, sym);
     return c;
   case TUPLE:
-    if (!left || !right) {
+    if (!len || !children) {
       printf("error creating tuple\n");
       return NULL; /* error */
     }
-    c->left = left;
-    c->right = right;
+    c->len = len;
+    c->children = malloc(sizeof(Cell *) * len);
+    memcpy(c->children, children, sizeof(Cell *) * len);
     return c;
   case NATIVE:
     if (!val) {
@@ -106,22 +113,22 @@ Cell *new(int type, symbol sym, Cell *left, Cell *right, NativeValue *val) {
 }
 
 Cell *new_nil() {
-  return new(NIL, NULL, NULL, NULL, NULL);
+  return new(NIL, NULL, 0, NULL, NULL);
 }
 
 Cell *new_symbol(symbol sym) {
-  return new(SYMBOL, sym, NULL, NULL, NULL);
+  return new(SYMBOL, sym, 0, NULL, NULL);
 }
 
-Cell *new_tuple(Cell *left, Cell *right) {
-  return new(TUPLE, NULL, left, right, NULL);
+Cell *new_tuple(int len, Cell **children) {
+  return new(TUPLE, NULL, len, children, NULL);
 }
 
 Cell *new_native_fn(long x) {
   NativeValue *v = malloc(sizeof(NativeValue));
   v->native_type = FUNCTION;
   v->long_val = x;
-  return new(NATIVE, NULL, NULL, NULL, v);
+  return new(NATIVE, NULL, 0, NULL, v);
 }
 
 Cell *copy_cell(Cell *c) {
@@ -133,8 +140,11 @@ Cell *copy_cell(Cell *c) {
     strcpy(x->sym, c->sym);
     break;
   case TUPLE:
-    x->left = copy_cell(c->left);
-    x->right = copy_cell(c->right);
+    x->len = c->len;
+    x->children = malloc(sizeof(Cell) * c->len);
+    for (int i = 0; i < c->len; i++) {
+      x->children[i] = copy_cell(c->children[i]);
+    }
     break;
   }
   return x;
@@ -199,12 +209,13 @@ Cell *atom(Cell *c) {
 }
 
 Cell *eq(Cell *c) {
-  if (c->type != TUPLE) {
+  if (c->type != TUPLE ||
+      c->len != 2) {
     /* error */
     return NULL;
   }
-  Cell *x = c->left;
-  Cell *y = c->right;
+  Cell *x = c->children[0];
+  Cell *y = c->children[1];
   if (x->type == SYMBOL &&
       y->type == SYMBOL) {
     if(strcmp(x->sym, y->sym) == 0) {
@@ -218,26 +229,26 @@ Cell *eq(Cell *c) {
 
 Cell *first(Cell *x) {
   if (x->type == TUPLE) {
-    return x->left;
+    return x->children[0];
   }
   return NULL;
 }
 
 Cell *rest(Cell *x) {
   if (x->type == TUPLE) {
-    return x->right;
+    return new_tuple(x->len - 1, &(x->children[1]));
   }
   return NULL;
 }
 
 Cell *ifthenelse(Cell *x) {
   if (x->type == TUPLE &&
-      x->left &&
-      x->left->type == SYMBOL) {
-    if (strcmp(x->left->sym, "true") == 0) {
-      return(x->right->left);
-    } else if (strcmp(x->left->sym, "false") == 0) {
-      return(x->right->right);
+      x->len == 3 &&
+      x->children[0]->type == SYMBOL) {
+    if (strcmp(x->children[0]->sym, "true") == 0) {
+      return(x->children[1]);
+    } else if (strcmp(x->children[0]->sym, "false") == 0) {
+      return(x->children[2]);
     }
   }
   printf("condition isn't a boolean\n");
@@ -245,7 +256,10 @@ Cell *ifthenelse(Cell *x) {
 }
 
 Cell *pair(Cell *left, Cell *right) {
-  return new_tuple(left, right);
+  Cell **children = malloc(sizeof(Cell *) * 2);
+  children[0] = left;
+  children[1] = right;
+  return new_tuple(2, children);
 }
 
 bool is_builtin_name(Cell *c) {
@@ -266,8 +280,9 @@ bool is_function(Cell *c) {
     return true;
   }
   if (c->type == TUPLE &&
-      c->left->type == SYMBOL &&
-      strcmp(c->left->sym, "#") == 0) {
+      c->len == 3 &&
+      c->children[0]->type == SYMBOL &&
+      strcmp(c->children[0]->sym, "#") == 0) {
     return true;
   }
   return false;
@@ -306,13 +321,13 @@ Scope *add_to_scope(Scope *scope, Cell *param_names, Cell *args) {
   }
 
   if (param_names->type != TUPLE ||
-      param_names->left->type != SYMBOL ||
+      first(param_names)->type != SYMBOL ||
       args->type != TUPLE) {
     /* return error */
   }
 
-  scope = add(scope, param_names->left->sym, args->left);
-  return add_to_scope(scope, param_names->right, args->right);
+  scope = add(scope, first(param_names)->sym, first(args));
+  return add_to_scope(scope, rest(param_names), rest(args));
 }
 
 Cell *eval(Cell *c, Scope *scope);
@@ -323,12 +338,12 @@ Cell *apply_function(Cell *fn, Cell *args, Scope *scope) {
     Cell *((*f)(Cell *)) = (Cell *((*)(Cell *)))fn->val->long_val;
     return (*f)(args);
   } 
-  if (!fn->right || fn->right->type != TUPLE) {
+  if (!(fn->type == TUPLE) || !(fn->len == 3)) {
     printf("failed to apply function "); println_cell(fn);
     return NULL;
   }
-  Cell *body = fn->right->right;
-  Cell *param_names = fn->right->left;
+  Cell *body = fn->children[2];
+  Cell *param_names = fn->children[1];
   scope = add_to_scope(scope, param_names, args);
   Cell *result = eval(body, scope);
   printf("result: ");println_cell(result);
@@ -348,17 +363,18 @@ Cell *eval(Cell *c, Scope *scope) {
   }	  
     
   if (c->type == TUPLE) {
-    Cell *left = eval(c->left,scope);
-    printf("left: ");println_cell(left);
-    if (is_function(left)) {
-      return apply_function(left, eval(c->right, scope), scope);
-      
+    Cell *head = eval(first(c),scope);
+    printf("head: ");println_cell(head);
+    if (is_function(head)) {
+      return apply_function(head, eval(rest(c), scope), scope);
     }
-    
     Cell *r = malloc(sizeof(Cell));
     r->type = TUPLE;
-    r->left = left;
-    r->right = eval(c->right, scope);
+    r->len = c->len;
+    r->children[0] = head;
+    for (int i = 1; i < r->len; i++) {
+      r->children[i] = eval(c->children[i], scope);
+    }
     printf("result: ");println_cell(r);
     return r;
   }
@@ -402,18 +418,30 @@ Cell *parse_tuple(char **input_ptr) {
   } else {
     (*input_ptr)++;
   }
-  Cell *left = parse_expr(input_ptr);
-  if (!left) { return NULL; }
-  Cell *right = parse_expr(input_ptr);
-  if (!right) {return NULL; }
-  for(; **input_ptr == ' '; (*input_ptr)++);
-  if (**input_ptr != ')') {
+  int i = 0;
+  Cell **children = malloc(sizeof(Cell *));
+  while (**input_ptr != '\0') {
+    for(; **input_ptr == ' '; (*input_ptr)++);
+    Cell *child = parse_expr(input_ptr);
+    if (!child) {
+      break;
+    }
+    if (i && !(i & (i - 1))) { // power of two
+      Cell **new_children = malloc(sizeof(Cell *) * (2 * i));
+      memcpy(new_children, children, sizeof(Cell *) * i);
+      free(children);
+      children = new_children;
+    }
+    children[i] = child;
+    i++;
+  }
+  if (**input_ptr == ')') {
     printf("unmatched '('\n");
     return NULL;
   } else {
     (*input_ptr)++;
   }
-  return new_tuple(left, right);
+  return new_tuple(i, children);
 }
 
 Cell *parse_atom(char **input_ptr) {
