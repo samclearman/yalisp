@@ -89,10 +89,11 @@ Cell *new(int type, symbol sym, int len, Cell **children, NativeValue *val) {
     strcpy(c->sym, sym);
     return c;
   case TUPLE:
-    if (!len || !children) {
+    if (len < 0) {
       printf("error creating tuple\n");
       return NULL; /* error */
     }
+    printf("creating tuple with length %d\n", len);
     c->len = len;
     c->children = malloc(sizeof(Cell *) * len);
     memcpy(c->children, children, sizeof(Cell *) * len);
@@ -132,6 +133,10 @@ Cell *new_native_fn(long x) {
 }
 
 Cell *copy_cell(Cell *c) {
+  if (!c) {
+    printf("tried to copy null cell\n");
+    return NULL;
+  }
   Cell *x = malloc(sizeof(Cell));
   x->type = c->type;
   switch (c->type) {
@@ -172,8 +177,9 @@ Scope *new_scope() {
 
 Cell *lookup(Scope *scope, char *name) {
   if (scope == NULL) {
+    printf("not found\n");
     return NULL;
- } 
+  } 
 
   if (strcmp(scope->name, name) == 0) {
     return copy_cell(scope->value);
@@ -212,6 +218,7 @@ Cell *eq(Cell *c) {
   if (c->type != TUPLE ||
       c->len != 2) {
     /* error */
+    printf("invalid arg format for builtin at eq\n");
     return NULL;
   }
   Cell *x = c->children[0];
@@ -224,6 +231,7 @@ Cell *eq(Cell *c) {
       return new_symbol("false");
     }
   }
+  printf("invalid args for eq\n");
   return NULL;
 }
 
@@ -231,11 +239,15 @@ Cell *first(Cell *x) {
   if (x->type == TUPLE) {
     return x->children[0];
   }
+  printf("invalid args for first\n");
   return NULL;
 }
 
 Cell *rest(Cell *x) {
   if (x->type == TUPLE) {
+    if (x->len == 0) {
+      return new_tuple(0,NULL);
+    }
     return new_tuple(x->len - 1, &(x->children[1]));
   }
   return NULL;
@@ -319,7 +331,10 @@ Scope *add_to_scope(Scope *scope, Cell *param_names, Cell *args) {
   if (is_null(param_names) && is_null(args)) {
     return scope;
   }
-
+  if (param_names->type == TUPLE && param_names->len == 0) {
+    return scope;
+  }
+  
   if (param_names->type != TUPLE ||
       first(param_names)->type != SYMBOL ||
       args->type != TUPLE) {
@@ -360,7 +375,7 @@ Cell *eval(Cell *c, Scope *scope) {
   if (is_builtin_name(c)) {
     printf("builtin\n");
     return builtin_for(c);
-  }	  
+  }
     
   if (c->type == TUPLE) {
     Cell *head = eval(first(c),scope);
@@ -371,6 +386,7 @@ Cell *eval(Cell *c, Scope *scope) {
     Cell *r = malloc(sizeof(Cell));
     r->type = TUPLE;
     r->len = c->len;
+    r->children = malloc(sizeof(Cell) * r->len);
     r->children[0] = head;
     for (int i = 1; i < r->len; i++) {
       r->children[i] = eval(c->children[i], scope);
@@ -435,7 +451,7 @@ Cell *parse_tuple(char **input_ptr) {
     children[i] = child;
     i++;
   }
-  if (**input_ptr == ')') {
+  if (**input_ptr != ')') {
     printf("unmatched '('\n");
     return NULL;
   } else {
