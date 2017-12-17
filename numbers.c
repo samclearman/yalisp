@@ -1,0 +1,120 @@
+#include <limits.h>
+
+typedef struct {
+  int num_digits;
+  unsigned long *digits;
+} Integer;
+
+Integer new_integer(long value) {
+  Integer r;
+  r.num_digits = 1;
+  r.digits = malloc(sizeof(unsigned long));
+  r.digits[0] = value;
+  return r;
+}
+
+void destroy_integer(Integer x) {
+  free(x.digits);
+}
+
+Integer add_integers(Integer x, Integer y) {
+
+  /* TODO: add an optimized codepath for the case where x and y are both
+   *       single digits and the operation doesn't overflow
+   */
+  
+  int max_r_digits =
+    x.num_digits > y.num_digits ? x.num_digits + 1 : y.num_digits + 1;
+  unsigned long *result = malloc(max_r_digits * sizeof(unsigned long));
+
+  int r_digits = 0;
+  unsigned long overflow = 0;
+  unsigned long next_x, next_y;
+
+  while (r_digits < x.num_digits || r_digits < y.num_digits || overflow > 0) {
+    
+    next_x  = r_digits < x.num_digits ? x.digits[r_digits] : 0;
+    next_y  = r_digits < y.num_digits ? y.digits[r_digits] : 0;
+    
+    if (ULONG_MAX - overflow >= next_x &&
+	ULONG_MAX - next_y >= (next_x + overflow)) {
+      result[r_digits] = next_x + next_y + overflow;
+      overflow = 0;
+    } else {
+      if (next_x > next_y) {
+	result[r_digits] = next_x - (ULONG_MAX - next_y) + overflow;
+      } else {
+	result[r_digits] = next_y - (ULONG_MAX - next_x) + overflow;
+      }
+      overflow = 1;
+    }
+    r_digits++;
+
+  }
+
+  Integer r;
+  r.num_digits = r_digits;
+  r.digits = malloc(r_digits * sizeof(unsigned long));
+  memcpy(r.digits, result, r_digits);
+
+  free(result);
+  return r;
+}
+
+Integer mul(Integer x, Integer y) {
+  
+  unsigned long next_x, next_y;
+  Integer r = new_integer(0);
+
+  for (int i = 0; i < x.num_digits; i++) {
+    for (int j = 0; j < y.num_digits; j++) {
+
+      next_x = x.digits[i];
+      next_y = y.digits[j];
+      
+      if(next_x > ULONG_MAX / next_y){ 
+      
+	long x_r = next_x & 4294967295;
+	long x_l = (next_x & 4294967295 << 32) >> 32;
+	long y_r = next_y & 4294967295;
+	long y_l = (next_y & 4294967295 << 32) >> 32;
+
+	long p = (x_r * y_r)
+	  + ((x_l * y_r) << 32)
+	  + ((x_r * y_l) << 32);
+	Integer product = new_integer(p);
+
+	long c = (x_l * y_l);
+	Integer carry;
+	carry.num_digits = 2;
+	carry.digits = malloc(sizeof(unsigned long) * 2);
+	carry.digits[0] = 0;
+	carry.digits[1] = c;
+
+	Integer r_1 = add_integers(product, r);
+	Integer r_2 = add_integers(carry, r_1);
+
+	destroy_integer(r);
+	destroy_integer(product);
+	destroy_integer(carry);
+
+	r = r_2;
+
+	destroy_integer(r_1);
+	destroy_integer(r_2);
+      
+      } else {
+
+	Integer product = new_integer(next_x * next_y);
+	Integer r_1 = add_integers(product, r);
+	destroy_integer(r);
+	r = r_1;
+	destroy_integer(r_1);
+      
+      }
+      
+    }
+  }
+
+  return r;	
+}
