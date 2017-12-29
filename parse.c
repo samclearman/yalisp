@@ -5,6 +5,7 @@
 Cell *parse_expr(char **input_ptr);
 Cell *parse_tuple(char **input_ptr);
 Cell *parse_atom(char **input_ptr);
+Cell *parse_number(char **input_ptr);
 Cell *parse(char *input) {
   return parse_expr(&input);
 }
@@ -18,12 +19,16 @@ Cell *parse_expr(char **input_ptr) {
   if (**input_ptr == '(') {
     return parse_tuple(input_ptr);
   }
+  if ('0' <= **input_ptr &&
+      **input_ptr <= '9') {
+    return parse_number(input_ptr);
+  }
   return parse_atom(input_ptr);
 }
 
 Cell *parse_tuple(char **input_ptr) {
   if (**input_ptr != '(') {
-    printf("tuples must being with (\n");
+    printf("tuples must begin with (\n");
     return NULL;
   } else {
     (*input_ptr)++;
@@ -77,5 +82,21 @@ Cell *parse_atom(char **input_ptr) {
     c = new_symbol(name);
   }
   free(name);
+  return c;
+}
+
+Cell *parse_number(char **input_ptr) {
+  Integer ten = new_integer(10);
+  Integer x = new_integer(0);
+  for (; '0' <= **input_ptr && **input_ptr <= '9'; (*input_ptr)++) {
+    Integer digit = new_integer((long) (**input_ptr - '0'));
+    Integer new_x = mul(x, ten);
+    destroy_integer(x);
+    x = add_integers(new_x, digit);
+    destroy_integer(digit);
+    destroy_integer(new_x);
+  }
+  destroy_integer(ten);
+  Cell *c = new_native_int(x);
   return c;
 }

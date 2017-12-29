@@ -13,9 +13,10 @@ typedef char *symbol;
 typedef struct NativeValue {
   int native_type;
   long long_val;
+  Integer integer_val;
 } NativeValue;
 
-enum { LONG, FUNCTION };
+enum { LONG, FUNCTION, INTEGER };
   
 typedef struct Cell {
   int type;
@@ -32,6 +33,7 @@ enum { SYMBOL, TUPLE, NIL, NATIVE};
 
 struct Cell NIL_CELL = {.type = NIL};
 
+void print_native_cell(NativeValue *);
 void print_cell(Cell *c) {
   switch (c->type) {
   case SYMBOL:
@@ -50,14 +52,39 @@ void print_cell(Cell *c) {
     printf("$");
     break;
   case NATIVE:
-    printf("<native code at %p>", (void *) c->val->long_val);
+    print_native_cell(c->val);
     break;
   } 
 }
 
+void print_native_cell(NativeValue *v) {
+  switch (v->native_type) {
+  case FUNCTION:
+    printf("<native code at %p>", (void *) v->long_val);
+    break;
+  case LONG:
+    printf("<native long: %ld>", v->long_val);
+    break;
+  case INTEGER:
+    for (int i = 0; i < v->integer_val.num_digits; i++) {
+      printf("%lu", v->integer_val.digits[i]);
+    }
+    break;
+  }
+} 
+             
 void println_cell(Cell* c) {
   print_cell(c);
   printf("\n");
+}
+
+void free_native(NativeValue *v) {
+  switch(v->native_type) {
+  case INTEGER:
+    destroy_integer(v->integer_val);
+    break;
+  }
+  free(v);
 }
 
 void free_cell(Cell *c) {
@@ -71,7 +98,7 @@ void free_cell(Cell *c) {
     }
     break;
   case NATIVE:
-    free(c->val);
+    free_native(c->val);
   }
   free(c);
 }
@@ -132,6 +159,27 @@ Cell *new_native_fn(long x) {
   return new(NATIVE, NULL, 0, NULL, v);
 }
 
+Cell *new_native_int(Integer x) {
+  NativeValue *v = malloc(sizeof(NativeValue));
+  v->native_type = INTEGER;
+  v->integer_val = x;
+  return new(NATIVE, NULL, 0, NULL, v);
+}
+
+NativeValue *copy_native(NativeValue *v) {
+  NativeValue *u = malloc(sizeof(NativeValue));
+  u->native_type = v->native_type;
+  u->long_val = v->long_val;
+  switch (v->native_type) {
+  case INTEGER:
+    u->integer_val = copy_integer(v->integer_val);
+    break;
+  }
+  return u;
+}
+
+
+
 Cell *copy_cell(Cell *c) {
   if (!c) {
     printf("tried to copy null cell\n");
@@ -150,6 +198,9 @@ Cell *copy_cell(Cell *c) {
     for (int i = 0; i < c->len; i++) {
       x->children[i] = copy_cell(c->children[i]);
     }
+    break;
+  case NATIVE:
+    x->val = copy_native(c->val);
     break;
   }
   return x;

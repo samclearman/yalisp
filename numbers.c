@@ -5,6 +5,14 @@ typedef struct {
   unsigned long *digits;
 } Integer;
 
+Integer copy_integer(Integer i) {
+  Integer j;
+  j.num_digits = i.num_digits;
+  j.digits = malloc(sizeof(unsigned long) * i.num_digits);
+  memcpy(j.digits, i.digits, i.num_digits);
+  return j;
+}
+
 Integer new_integer(long value) {
   Integer r;
   r.num_digits = 1;
@@ -62,7 +70,7 @@ Integer add_integers(Integer x, Integer y) {
 }
 
 Integer mul(Integer x, Integer y) {
-  
+
   unsigned long next_x, next_y;
   Integer r = new_integer(0);
 
@@ -109,7 +117,6 @@ Integer mul(Integer x, Integer y) {
 	Integer r_1 = add_integers(product, r);
 	destroy_integer(r);
 	r = r_1;
-	destroy_integer(r_1);
       
       }
       
