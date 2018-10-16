@@ -10,15 +10,12 @@
  */
 
 Cell *eval(Cell *c, Scope *scope) {
-  printf("evaluating: ");println_cell(c);
   if (is_builtin_name(c)) {
-    printf("builtin\n");
     return builtin_for(c);
   }
     
   if (c->type == TUPLE) {
     Cell *head = eval(first(c),scope);
-    printf("head: ");println_cell(head);
     if (is_function(head)) {
       return apply_function(head, eval(rest(c), scope), scope);
     }
@@ -30,7 +27,6 @@ Cell *eval(Cell *c, Scope *scope) {
     for (int i = 1; i < r->len; i++) {
       r->children[i] = eval(c->children[i], scope);
     }
-    printf("result: ");println_cell(r);
     return r;
   }
   
@@ -77,7 +73,7 @@ int main(int argc, char** argv) {
     }
 
     free(input);
-  }re
+  }
   
   return 0;
 }

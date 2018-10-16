@@ -6,6 +6,7 @@ Cell *parse_expr(char **input_ptr);
 Cell *parse_tuple(char **input_ptr);
 Cell *parse_atom(char **input_ptr);
 Cell *parse_number(char **input_ptr);
+
 Cell *parse(char *input) {
   return parse_expr(&input);
 }

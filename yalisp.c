@@ -66,9 +66,10 @@ void print_native_cell(NativeValue *v) {
     printf("<native long: %ld>", v->long_val);
     break;
   case INTEGER:
-    for (int i = 0; i < v->integer_val.num_digits; i++) {
-      printf("%lu", v->integer_val.digits[i]);
-    }
+    /* for (int i = 0; i < v->integer_val.num_digits; i++) { */
+    /*   printf("%lu", v->integer_val.digits[i]); */
+    /* } */
+    print_integer(v->integer_val);
     break;
   }
 } 
@@ -120,7 +121,6 @@ Cell *new(int type, symbol sym, int len, Cell **children, NativeValue *val) {
       printf("error creating tuple\n");
       return NULL; /* error */
     }
-    printf("creating tuple with length %d\n", len);
     c->len = len;
     c->children = malloc(sizeof(Cell *) * len);
     memcpy(c->children, children, sizeof(Cell *) * len);

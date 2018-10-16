@@ -5,11 +5,17 @@ typedef struct {
   unsigned long *digits;
 } Integer;
 
+void print_integer(Integer i) {
+  for (int l = 1; l <= i.num_digits; l++) {
+    printf("%lu,", i.digits[i.num_digits - l]);
+  }
+}
+
 Integer copy_integer(Integer i) {
   Integer j;
   j.num_digits = i.num_digits;
   j.digits = malloc(sizeof(unsigned long) * i.num_digits);
-  memcpy(j.digits, i.digits, i.num_digits);
+  memcpy(j.digits, i.digits, (i.num_digits * sizeof(unsigned long)));
   return j;
 }
 
@@ -63,9 +69,10 @@ Integer add_integers(Integer x, Integer y) {
   Integer r;
   r.num_digits = r_digits;
   r.digits = malloc(r_digits * sizeof(unsigned long));
-  memcpy(r.digits, result, r_digits);
 
+  memcpy(r.digits, result, (r_digits * sizeof(unsigned long)));
   free(result);
+  
   return r;
 }
 
@@ -82,17 +89,17 @@ Integer mul(Integer x, Integer y) {
       
       if(next_x > ULONG_MAX / next_y){ 
       
-	long x_r = next_x & 4294967295;
-	long x_l = (next_x & 4294967295 << 32) >> 32;
-	long y_r = next_y & 4294967295;
-	long y_l = (next_y & 4294967295 << 32) >> 32;
+	unsigned long x_r = next_x & 4294967295;
+	unsigned long x_l = (next_x & (4294967295 << 32)) >> 32;
+	unsigned long y_r = next_y & 4294967295;
+	unsigned long y_l = (next_y & (4294967295 << 32)) >> 32;
 
-	long p = (x_r * y_r)
+	unsigned long p = (x_r * y_r)
 	  + ((x_l * y_r) << 32)
 	  + ((x_r * y_l) << 32);
 	Integer product = new_integer(p);
 
-	long c = (x_l * y_l);
+	unsigned long c = (x_l * y_l);
 	Integer carry;
 	carry.num_digits = 2;
 	carry.digits = malloc(sizeof(unsigned long) * 2);
