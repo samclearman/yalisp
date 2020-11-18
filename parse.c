@@ -86,10 +86,12 @@ Cell *parse_atom(char **input_ptr) {
 }
 
 Cell *parse_number(char **input_ptr) {
-  Integer ten = new_integer(10);
-  Integer x = new_integer(0);
+  printf("parsing int\n");
+  Integer ten = new_integer((unsigned long) 10);
+  Integer x = new_integer((unsigned long) 0);
   for (; '0' <= **input_ptr && **input_ptr <= '9'; (*input_ptr)++) {
-    Integer digit = new_integer((long) (**input_ptr - '0'));
+    unsigned long next = (unsigned long) (**input_ptr - '0');
+    Integer digit = new_integer(next);
     Integer new_x = mul(x, ten);
     destroy_integer(x);
     x = add_integers(new_x, digit);

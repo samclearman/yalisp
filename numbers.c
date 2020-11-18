@@ -9,16 +9,22 @@ Integer copy_integer(Integer i) {
   Integer j;
   j.num_digits = i.num_digits;
   j.digits = malloc(sizeof(unsigned long) * i.num_digits);
-  memcpy(j.digits, i.digits, i.num_digits);
+  memcpy(j.digits, i.digits, sizeof(unsigned long) * i.num_digits);
   return j;
 }
 
-Integer new_integer(long value) {
+Integer new_integer(unsigned long value) {
   Integer r;
   r.num_digits = 1;
   r.digits = malloc(sizeof(unsigned long));
   r.digits[0] = value;
   return r;
+}
+
+void print_integer(Integer x) {
+  for (int i = 0; i < x.num_digits; i++) {
+    printf("%lu ", x.digits[i]);
+  }
 }
 
 void destroy_integer(Integer x) {
@@ -43,7 +49,6 @@ Integer add_integers(Integer x, Integer y) {
     
     next_x  = r_digits < x.num_digits ? x.digits[r_digits] : 0;
     next_y  = r_digits < y.num_digits ? y.digits[r_digits] : 0;
-    
     if (ULONG_MAX - overflow >= next_x &&
 	ULONG_MAX - next_y >= (next_x + overflow)) {
       result[r_digits] = next_x + next_y + overflow;
@@ -63,7 +68,7 @@ Integer add_integers(Integer x, Integer y) {
   Integer r;
   r.num_digits = r_digits;
   r.digits = malloc(r_digits * sizeof(unsigned long));
-  memcpy(r.digits, result, r_digits);
+  memcpy(r.digits, result, r_digits * sizeof(unsigned long));
 
   free(result);
   return r;
@@ -80,24 +85,34 @@ Integer mul(Integer x, Integer y) {
       next_x = x.digits[i];
       next_y = y.digits[j];
       
-      if(next_x > ULONG_MAX / next_y){ 
-      
-	long x_r = next_x & 4294967295;
-	long x_l = (next_x & 4294967295 << 32) >> 32;
-	long y_r = next_y & 4294967295;
-	long y_l = (next_y & 4294967295 << 32) >> 32;
+      if(next_x > ULONG_MAX / next_y){
 
-	long p = (x_r * y_r)
-	  + ((x_l * y_r) << 32)
-	  + ((x_r * y_l) << 32);
-	Integer product = new_integer(p);
+        // 4294967295 = 2^32 - 1
+        // todo this should use ulong_max or something
+	unsigned long x_r = next_x & 4294967295;
+	unsigned long x_l = (next_x & (4294967295 << 32)) >> 32;
+	unsigned long y_r = next_y & 4294967295;
+	unsigned long y_l = (next_y & (4294967295 << 32)) >> 32;
+        
+	unsigned long p = x_r * y_r;
+        unsigned long p1 = x_l * y_r;
+        unsigned long p1_l = (p1 & (4294967295 << 32)) >> 32;
+        unsigned long p1_r = p1 & 4294967295;
+	unsigned long p2 = x_r * y_l;
+        unsigned long p2_l = (p2 & (4294967295 << 32)) >> 32;
+        unsigned long p2_r = p2 & 4294967295;
 
-	long c = (x_l * y_l);
+
+	Integer product;
+        product.num_digits = i + j + 1;
+        product.digits = calloc(i + j + 1, sizeof(unsigned long));
+        product.digits[i + j] = p + (p1_r << 32) + (p2_r << 32);
+
+	unsigned long c = (x_l * y_l + p1_l + p2_l);
 	Integer carry;
-	carry.num_digits = 2;
-	carry.digits = malloc(sizeof(unsigned long) * 2);
-	carry.digits[0] = 0;
-	carry.digits[1] = c;
+	carry.num_digits = i + j + 2;
+	carry.digits = calloc(i + j + 2, sizeof(unsigned long));
+	carry.digits[i + j + 1] = c;
 
 	Integer r_1 = add_integers(product, r);
 	Integer r_2 = add_integers(carry, r_1);
@@ -109,11 +124,12 @@ Integer mul(Integer x, Integer y) {
 	r = r_2;
 
 	destroy_integer(r_1);
-	destroy_integer(r_2);
-      
       } else {
+	Integer product;
+        product.num_digits = i + j + 1;
+        product.digits = calloc(i + j + 1, sizeof(unsigned long));
+        product.digits[i + j] = next_x * next_y;
 
-	Integer product = new_integer(next_x * next_y);
 	Integer r_1 = add_integers(product, r);
 	destroy_integer(r);
 	r = r_1;

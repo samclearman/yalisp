@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     }
 
     free(input);
-  }re
+  }
   
   return 0;
 }
