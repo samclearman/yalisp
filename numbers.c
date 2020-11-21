@@ -5,6 +5,12 @@ typedef struct {
   unsigned long *digits;
 } Integer;
 
+void print_integer(Integer i) {
+  for (int l = 1; l <= i.num_digits; l++) {
+    printf("%lu,", i.digits[i.num_digits - l]);
+  }
+}
+
 Integer copy_integer(Integer i) {
   Integer j;
   j.num_digits = i.num_digits;
@@ -70,7 +76,9 @@ Integer add_integers(Integer x, Integer y) {
   r.digits = malloc(r_digits * sizeof(unsigned long));
   memcpy(r.digits, result, r_digits * sizeof(unsigned long));
 
+  memcpy(r.digits, result, (r_digits * sizeof(unsigned long)));
   free(result);
+  
   return r;
 }
 
