@@ -27,12 +27,6 @@ Integer new_integer(unsigned long value) {
   return r;
 }
 
-void print_integer(Integer x) {
-  for (int i = 0; i < x.num_digits; i++) {
-    printf("%lu ", x.digits[i]);
-  }
-}
-
 void destroy_integer(Integer x) {
   free(x.digits);
 }
