@@ -50,7 +50,6 @@ int main(int argc, char** argv) {
   /* Start the REPL */
   
   puts("yalisp 0.001");
-
   while(1) {
     char *input = readline("yalisp> ");
     add_history(input);

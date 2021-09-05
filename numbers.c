@@ -36,19 +36,19 @@ Integer add_integers(Integer x, Integer y) {
   /* TODO: add an optimized codepath for the case where x and y are both
    *       single digits and the operation doesn't overflow
    */
-  
+
   int max_r_digits =
     x.num_digits > y.num_digits ? x.num_digits + 1 : y.num_digits + 1;
   unsigned long *result = malloc(max_r_digits * sizeof(unsigned long));
-
+  
   int r_digits = 0;
   unsigned long overflow = 0;
   unsigned long next_x, next_y;
 
   while (r_digits < x.num_digits || r_digits < y.num_digits || overflow > 0) {
-    
     next_x  = r_digits < x.num_digits ? x.digits[r_digits] : 0;
     next_y  = r_digits < y.num_digits ? y.digits[r_digits] : 0;
+
     if (ULONG_MAX - overflow >= next_x &&
 	ULONG_MAX - next_y >= (next_x + overflow)) {
       result[r_digits] = next_x + next_y + overflow;
@@ -76,8 +76,7 @@ Integer add_integers(Integer x, Integer y) {
   return r;
 }
 
-Integer mul(Integer x, Integer y) {
-
+Integer multiply_integer(Integer x, Integer y) {
   unsigned long next_x, next_y;
   Integer r = new_integer(0);
 
@@ -86,8 +85,8 @@ Integer mul(Integer x, Integer y) {
 
       next_x = x.digits[i];
       next_y = y.digits[j];
-      
-      if(next_x > ULONG_MAX / next_y){
+
+      if (next_x > ULONG_MAX / next_y) {
 
         // 4294967295 = 2^32 - 1
         // todo this should use ulong_max or something
@@ -104,12 +103,10 @@ Integer mul(Integer x, Integer y) {
         unsigned long p2_l = (p2 & (4294967295 << 32)) >> 32;
         unsigned long p2_r = p2 & 4294967295;
 
-
 	Integer product;
         product.num_digits = i + j + 1;
         product.digits = calloc(i + j + 1, sizeof(unsigned long));
         product.digits[i + j] = p + (p1_r << 32) + (p2_r << 32);
-
 	unsigned long c = (x_l * y_l + p1_l + p2_l);
 	Integer carry;
 	carry.num_digits = i + j + 2;
@@ -124,7 +121,6 @@ Integer mul(Integer x, Integer y) {
 	destroy_integer(carry);
 
 	r = r_2;
-
 	destroy_integer(r_1);
       } else {
 	Integer product;
@@ -135,7 +131,6 @@ Integer mul(Integer x, Integer y) {
 	Integer r_1 = add_integers(product, r);
 	destroy_integer(r);
 	r = r_1;
-      
       }
       
     }
